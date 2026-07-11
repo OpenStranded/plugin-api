@@ -3,12 +3,15 @@
 //! Plugin SDK for `OpenStranded` — the core types and traits that all
 //! WASM game plugins use to communicate with the engine and each other.
 //!
+//! This crate defines the **plugin contract** only. Internal data structures
+//! (`Registry`, `ServiceRegistry`) live in the engine crate.
+//!
 //! ## Core types
 //!
 //! - [`Value`]: dynamic type for cross-plugin arguments and return values
 //! - [`ServiceError`]: typed errors for Service API calls
-//! - [`Service`] + [`ServiceRegistry`]: cross-plugin method call interface
-//! - [`Registry`] + [`RegistryEntry`]: in-memory content pack data
+//! - [`Service`]: cross-plugin method call interface (trait)
+//! - [`RegistryEntry`]: a single file from content pack (data + filename)
 //! - [`GameAPI`]: host-side API surface provided to plugins
 //! - [`Contribution`]: declarative output from WASM plugin `build()` phase
 //! - [`ApiVersion`]: compile-time baked version for compatibility checks
@@ -44,8 +47,8 @@ pub mod test_utils;
 
 pub use value::Value;
 pub use error::ServiceError;
-pub use service::{Service, ServiceRegistry};
-pub use registry::{Registry, RegistryEntry};
+pub use service::Service;
+pub use registry::RegistryEntry;
 #[cfg(feature = "parse")]
 pub use registry::{parse_registry_data, parse_registry_list};
 pub use game_api::{GameAPI, LogLevel};

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ServiceError;
 
 #[cfg(feature = "parse")]
@@ -8,6 +6,8 @@ use crate::Value;
 use ron::value::Value as RonValue;
 
 /// A single file from a Content Pack, indexed in the Registry.
+///
+/// This is a data-transfer object that crosses the WASM boundary.
 #[derive(Clone, Debug)]
 pub struct RegistryEntry {
     /// Filename (e.g. "`items_edible.ron`").
@@ -15,97 +15,6 @@ pub struct RegistryEntry {
 
     /// Raw file bytes.
     pub data: Vec<u8>,
-}
-
-/// All data from a Content Pack, grouped by domain (from manifest.toml).
-///
-/// Registry is an "in-memory filesystem". It does not know the structure of
-/// the data inside files. Each plugin decides how to parse the bytes it receives.
-///
-/// # Structure
-///
-/// ```text
-/// domains: {
-///     "items"   → { "items_edible.ron": [...bytes...], "items_material.ron": [...bytes...] },
-///     "recipes" → { "combinations.ron": [...bytes...] },
-/// }
-/// ```
-#[derive(Clone, Debug, Default)]
-pub struct Registry {
-    /// Domain → { filename → raw bytes }
-    pub domains: HashMap<String, HashMap<String, Vec<u8>>>,
-}
-
-impl Registry {
-    /// Create an empty Registry.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            domains: HashMap::new(),
-        }
-    }
-
-    /// Get all files in a domain.
-    pub fn domain(&self, name: &str) -> Result<&HashMap<String, Vec<u8>>, ServiceError> {
-        self.domains
-            .get(name)
-            .ok_or_else(|| ServiceError::RegistryDomainNotFound(name.into()))
-    }
-
-    /// Get raw bytes of a specific file within a domain.
-    pub fn file(&self, domain: &str, filename: &str) -> Result<&[u8], ServiceError> {
-        self.domains
-            .get(domain)
-            .and_then(|files| files.get(filename))
-            .map(std::vec::Vec::as_slice)
-            .ok_or_else(|| ServiceError::FileNotFound {
-                domain: domain.into(),
-                filename: filename.into(),
-            })
-    }
-
-    /// Get all entries in a domain as `Vec<RegistryEntry>` (filename + data).
-    pub fn domain_entries(&self, name: &str) -> Result<Vec<RegistryEntry>, ServiceError> {
-        let files = self.domain(name)?;
-        Ok(files
-            .iter()
-            .map(|(filename, data)| RegistryEntry {
-                filename: filename.clone(),
-                data: data.clone(),
-            })
-            .collect())
-    }
-
-    /// Add a file to a domain.
-    pub fn add_file(&mut self, domain: &str, filename: &str, data: Vec<u8>) {
-        self.domains
-            .entry(domain.to_owned())
-            .or_default()
-            .insert(filename.to_owned(), data);
-    }
-
-    /// Check whether a domain exists.
-    #[must_use]
-    pub fn has_domain(&self, name: &str) -> bool {
-        self.domains.contains_key(name)
-    }
-
-    /// Iterate over all domain names.
-    pub fn domain_names(&self) -> impl Iterator<Item = &str> {
-        self.domains.keys().map(std::string::String::as_str)
-    }
-
-    /// Number of domains.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.domains.len()
-    }
-
-    /// Whether the Registry is empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.domains.is_empty()
-    }
 }
 
 // ── Registry data parsing ──────────────────────────────────────────
@@ -268,29 +177,5 @@ mod tests {
     fn test_parse_invalid_ron() {
         let ron = b"not valid ron {{{";
         assert!(parse_registry_data(ron).is_err());
-    }
-
-    #[test]
-    fn test_registry_add_and_get() {
-        let mut reg = Registry::new();
-        reg.add_file("items", "items_edible.ron", vec![1, 2, 3]);
-        reg.add_file("items", "items_material.ron", vec![4, 5, 6]);
-
-        assert_eq!(reg.file("items", "items_edible.ron").unwrap(), &[1, 2, 3]);
-        assert_eq!(reg.domain_entries("items").unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_registry_file_not_found() {
-        let reg = Registry::new();
-        let err = reg.file("nonexistent", "foo.ron").unwrap_err();
-        assert!(matches!(err, ServiceError::FileNotFound { .. }));
-    }
-
-    #[test]
-    fn test_registry_domain_not_found() {
-        let reg = Registry::new();
-        let err = reg.domain("nonexistent").unwrap_err();
-        assert!(matches!(err, ServiceError::RegistryDomainNotFound(..)));
     }
 }

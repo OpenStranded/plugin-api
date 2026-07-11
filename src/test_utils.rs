@@ -1,7 +1,8 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 use crate::{
-    GameAPI, LogLevel, Registry, RegistryEntry, Service, ServiceError,
+    GameAPI, LogLevel, RegistryEntry, Service, ServiceError,
 };
 
 /// A mock implementation of `GameAPI` for unit-testing plugins natively.
@@ -30,8 +31,8 @@ use crate::{
 /// assert!(api.logs().is_empty());
 /// ```
 pub struct MockGameAPI {
-    /// In-memory registry with test data.
-    pub registry: Registry,
+    /// In-memory registry: domain → { filename → raw bytes }.
+    registry: HashMap<String, HashMap<String, Vec<u8>>>,
     /// Registered services (domain → service).
     services: Vec<(String, Box<dyn Service>)>,
     /// Accumulated log messages (interior mutability for &self log access).
@@ -43,7 +44,7 @@ impl MockGameAPI {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            registry: Registry::new(),
+            registry: HashMap::new(),
             services: Vec::new(),
             logs: RefCell::new(Vec::new()),
         }
@@ -68,10 +69,12 @@ impl MockGameAPI {
     /// ```
     #[must_use]
     pub fn with_registry_file(domain: &str, filename: &str, data: &[u8]) -> Self {
-        let mut registry = Registry::new();
-        registry.add_file(domain, filename, data.to_vec());
+        let mut reg: HashMap<String, HashMap<String, Vec<u8>>> = HashMap::new();
+        reg.entry(domain.to_owned())
+            .or_default()
+            .insert(filename.to_owned(), data.to_vec());
         Self {
-            registry,
+            registry: reg,
             services: Vec::new(),
             logs: RefCell::new(Vec::new()),
         }
@@ -104,13 +107,27 @@ impl Default for MockGameAPI {
 
 impl GameAPI for MockGameAPI {
     fn registry_domain(&self, name: &str) -> Result<Vec<RegistryEntry>, ServiceError> {
-        self.registry.domain_entries(name)
+        let files = self.registry.get(name).ok_or_else(|| {
+            ServiceError::RegistryDomainNotFound(name.into())
+        })?;
+        Ok(files
+            .iter()
+            .map(|(filename, data)| RegistryEntry {
+                filename: filename.clone(),
+                data: data.clone(),
+            })
+            .collect())
     }
 
     fn registry_file(&self, domain: &str, filename: &str) -> Result<Vec<u8>, ServiceError> {
         self.registry
-            .file(domain, filename)
-            .map(<[u8]>::to_vec)
+            .get(domain)
+            .and_then(|files| files.get(filename))
+            .cloned()
+            .ok_or_else(|| ServiceError::FileNotFound {
+                domain: domain.into(),
+                filename: filename.into(),
+            })
     }
 
     fn register_service(
