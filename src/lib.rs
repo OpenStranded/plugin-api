@@ -1,27 +1,32 @@
 //! # openstranded-plugin-api
 //!
-//! Plugin SDK for `OpenStranded` — the core types and traits that all
-//! WASM game plugins use to communicate with the engine and each other.
+//! Plugin SDK for `OpenStranded` — re-exports all contract types from
+//! [`openstranded-common-wasmcontract`] and adds plugin-specific utilities.
 //!
-//! This crate defines the **plugin contract** only. Internal data structures
-//! (`Registry`, `ServiceRegistry`) live in the engine crate.
+//! ## Re-exports
 //!
-//! ## Core types
+//! All core types come from [`openstranded-common-wasmcontract`]:
 //!
-//! - [`Value`]: dynamic type for cross-plugin arguments and return values
-//! - [`ServiceError`]: typed errors for Service API calls
-//! - [`Service`]: cross-plugin method call interface (trait)
-//! - [`RegistryEntry`]: a single file from content pack (data + filename)
-//! - [`GameAPI`]: host-side API surface provided to plugins
-//! - [`Contribution`]: declarative output from WASM plugin `build()` phase
-//! - [`ApiVersion`]: compile-time baked version for compatibility checks
+//! - [`Value`] — dynamic type for cross-plugin arguments and return values
+//! - [`ServiceError`] — typed errors for Service API calls
+//! - [`Service`] — cross-plugin method call interface (trait)
+//! - [`Registry`] — in-memory content pack data store
+//! - [`RegistryEntry`] — a single file from content pack (DTO)
+//! - [`GameAPI`] — host-side API surface provided to plugins
+//! - [`Contribution`] — declarative output from WASM plugin `build()` phase
+//! - [`ApiVersion`] — compile-time baked version for compatibility checks
+//! - [`LogLevel`] — log severity level
+//!
+//! ## Plugin-specific additions
+//!
+//! - [`MockGameAPI`](test_utils::MockGameAPI) (behind `test-utils` feature):
+//!   mock implementation of [`GameAPI`] for unit-testing plugins natively
 //!
 //! ## Feature flags
 //!
-//! - `parse` (default): enables [`parse_registry_data`] and [`parse_registry_list`]
-//! - `test-utils`: enables `MockGameAPI` for testing
+//! - `test-utils`: enables `MockGameAPI` and test utilities
 //!
-//! ## WASM entry points
+//! ## WASM entry points (planned)
 //!
 //! Every WASM plugin must export the following `#[no_mangle] extern "C"` functions:
 //!
@@ -32,25 +37,8 @@
 //! | `plugin_ready(api) -> bool` | No | Discovery phase |
 //! | `plugin_finish(api)` | No | Integration phase |
 
-mod value;
-mod error;
-mod service;
-mod registry;
-mod game_api;
-mod contributions;
-mod version;
+// Re-export everything from the shared wasmcontract crate.
+pub use openstranded_common_wasmcontract::*;
 
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
-
-// ── Re-exports ─────────────────────────────────────────────────────
-
-pub use value::Value;
-pub use error::ServiceError;
-pub use service::Service;
-pub use registry::RegistryEntry;
-#[cfg(feature = "parse")]
-pub use registry::{parse_registry_data, parse_registry_list};
-pub use game_api::{GameAPI, LogLevel};
-pub use contributions::{Contribution, SystemDecl, ResourceDecl};
-pub use version::{ApiVersion, VersionMismatch};

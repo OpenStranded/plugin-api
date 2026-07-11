@@ -18,12 +18,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
-name = "openstranded-plugin-api"
-version = "0.3.0"
+name = "openstranded-common-wasmcontract"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8667a79643fe501c8c2a7f9dc68b14917582ee4c8481f31269721434f50dfc65"
 dependencies = [
  "ron",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "openstranded-plugin-api"
+version = "0.4.0"
+dependencies = [
+ "openstranded-common-wasmcontract",
 ]
 
 [[package]]
