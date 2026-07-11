@@ -1,0 +1,31 @@
+[package]
+name = "openstranded-plugin-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+description = "OpenStranded Plugin SDK — Value, Service API, Registry, GameAPI"
+repository = "https://github.com/openstranded/openstranded"
+homepage = "https://github.com/openstranded/openstranded"
+documentation = "https://docs.rs/openstranded-plugin-api"
+readme = "README.md"
+keywords = ["game", "stranded", "survival", "openstranded"]
+categories = ["game-engines", "game-development"]
+exclude = ["/.gitignore", "Cargo.lock"]
+
+[package.metadata.docs.rs]
+features = ["ron", "test-utils"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+# Optional: RON parser for parse_registry_data / parse_registry_list helpers.
+# Plugins that parse .ron with their own types don't need this feature.
+ron = { version = "0.12", optional = true }
+
+[features]
+default = ["ron"]
+
+# Enables MockGameAPI and test utilities for plugin testing
+test-utils = []
