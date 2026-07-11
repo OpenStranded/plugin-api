@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::{
-    GameAPI, LogLevel, RegistryEntry, Service, ServiceError,
+    GameAPI, LogLevel, RegistryEntry, Service, ServiceError, Value,
 };
 
 /// A mock implementation of `GameAPI` for unit-testing plugins natively.
@@ -26,8 +26,6 @@ use crate::{
 /// let mut api = MockGameAPI::new();
 /// api.register_service("my", Box::new(MyService)).unwrap();
 /// assert!(api.has_service("my"));
-///
-/// // Check emitted logs
 /// assert!(api.logs().is_empty());
 /// ```
 pub struct MockGameAPI {
@@ -37,6 +35,18 @@ pub struct MockGameAPI {
     services: Vec<(String, Box<dyn Service>)>,
     /// Accumulated log messages (interior mutability for &self log access).
     logs: RefCell<Vec<(LogLevel, String)>>,
+    /// Simulated config values (dotted key → Value).
+    config: HashMap<String, Value>,
+    /// Simulated keybinds.
+    keybinds: HashMap<String, String>,
+    /// In-memory save data store.
+    save_data: HashMap<String, Vec<u8>>,
+    /// Content files by path.
+    content_files: HashMap<String, Vec<u8>>,
+    /// Next entity ID for spawn_entity.
+    next_entity: u64,
+    /// Emitted events (for test assertions).
+    events: RefCell<Vec<(String, Value)>>,
 }
 
 impl MockGameAPI {
@@ -47,26 +57,16 @@ impl MockGameAPI {
             registry: HashMap::new(),
             services: Vec::new(),
             logs: RefCell::new(Vec::new()),
+            config: HashMap::new(),
+            keybinds: HashMap::new(),
+            save_data: HashMap::new(),
+            content_files: HashMap::new(),
+            next_entity: 1,
+            events: RefCell::new(Vec::new()),
         }
     }
 
     /// Create a mock API pre-populated with a single registry file.
-    ///
-    /// Convenience for tests that need registry data.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use openstranded_plugin_api::test_utils::MockGameAPI;
-    /// use openstranded_plugin_api::GameAPI;
-    ///
-    /// let api = MockGameAPI::with_registry_file(
-    ///     "items", "items_edible.ron",
-    ///     b"[{ \"id\": 1, \"name\": \"Wood\" }]"
-    /// );
-    /// let entries = api.registry_domain("items").unwrap();
-    /// assert_eq!(entries.len(), 1);
-    /// ```
     #[must_use]
     pub fn with_registry_file(domain: &str, filename: &str, data: &[u8]) -> Self {
         let mut reg: HashMap<String, HashMap<String, Vec<u8>>> = HashMap::new();
@@ -77,7 +77,28 @@ impl MockGameAPI {
             registry: reg,
             services: Vec::new(),
             logs: RefCell::new(Vec::new()),
+            config: HashMap::new(),
+            keybinds: HashMap::new(),
+            save_data: HashMap::new(),
+            content_files: HashMap::new(),
+            next_entity: 1,
+            events: RefCell::new(Vec::new()),
         }
+    }
+
+    /// Set a config value for testing (dotted key path).
+    pub fn set_config(&mut self, key: &str, value: Value) {
+        self.config.insert(key.to_owned(), value);
+    }
+
+    /// Set a keybinding for testing.
+    pub fn set_keybind(&mut self, action: &str, key: &str) {
+        self.keybinds.insert(action.to_owned(), key.to_owned());
+    }
+
+    /// Add a content file by path.
+    pub fn add_content_file(&mut self, path: &str, data: Vec<u8>) {
+        self.content_files.insert(path.to_owned(), data);
     }
 
     /// Get all accumulated log messages (for assertions in tests).
@@ -97,6 +118,16 @@ impl MockGameAPI {
     pub fn service_domains(&self) -> Vec<&str> {
         self.services.iter().map(|(d, _)| d.as_str()).collect()
     }
+
+    /// Get all emitted events (for test assertions).
+    pub fn events(&self) -> Vec<(String, Value)> {
+        self.events.borrow().clone()
+    }
+
+    /// Check whether a specific event was emitted.
+    pub fn has_event(&self, name: &str) -> bool {
+        self.events.borrow().iter().any(|(n, _)| n == name)
+    }
 }
 
 impl Default for MockGameAPI {
@@ -106,6 +137,8 @@ impl Default for MockGameAPI {
 }
 
 impl GameAPI for MockGameAPI {
+    // ── Registry ──────────────────────────────────────────────────
+
     fn registry_domain(&self, name: &str) -> Result<Vec<RegistryEntry>, ServiceError> {
         let files = self.registry.get(name).ok_or_else(|| {
             ServiceError::RegistryDomainNotFound(name.into())
@@ -130,6 +163,17 @@ impl GameAPI for MockGameAPI {
             })
     }
 
+    // ── Content file access ──────────────────────────────────────
+
+    fn read_content_file(&self, path: &str) -> Result<Vec<u8>, ServiceError> {
+        self.content_files
+            .get(path)
+            .cloned()
+            .ok_or_else(|| ServiceError::ContentFileNotFound(path.into()))
+    }
+
+    // ── Services ─────────────────────────────────────────────────
+
     fn register_service(
         &mut self,
         domain: &str,
@@ -152,9 +196,90 @@ impl GameAPI for MockGameAPI {
             .ok_or_else(|| ServiceError::DomainNotFound(domain.into()))
     }
 
+    fn call_service(
+        &self,
+        domain: &str,
+        method: &str,
+        args: &[Value],
+    ) -> Result<Value, ServiceError> {
+        let service = self.get_service(domain)?;
+        service.call(method, args)
+    }
+
     fn has_service(&self, domain: &str) -> bool {
         self.services.iter().any(|(d, _)| d == domain)
     }
+
+    // ── ECS bridge (mock — minimal) ──────────────────────────────
+
+    fn get_component(&self, _entity: u64, _type_name: &str) -> Result<Vec<u8>, ServiceError> {
+        Err(ServiceError::Internal(
+            "MockGameAPI does not support ECS operations".into(),
+        ))
+    }
+
+    fn set_component(
+        &mut self,
+        _entity: u64,
+        _type_name: &str,
+        _data: &[u8],
+    ) -> Result<(), ServiceError> {
+        // Mock accepts silently (no-op).
+        Ok(())
+    }
+
+    fn query_entities(&self, _component_name: &str) -> Result<Vec<u64>, ServiceError> {
+        Ok(Vec::new()) // No entities in mock.
+    }
+
+    fn spawn_entity(&mut self, _archetype: &str) -> Result<u64, ServiceError> {
+        let id = self.next_entity;
+        self.next_entity += 1;
+        Ok(id)
+    }
+
+    fn despawn_entity(&mut self, _entity: u64) -> Result<(), ServiceError> {
+        Ok(())
+    }
+
+    // ── Configuration ────────────────────────────────────────────
+
+    fn read_config(&self, key: &str) -> Result<Value, ServiceError> {
+        Ok(self.config.get(key).cloned().unwrap_or(Value::Null))
+    }
+
+    fn read_keybinds(&self) -> Result<Value, ServiceError> {
+        let map: HashMap<String, Value> = self
+            .keybinds
+            .iter()
+            .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+            .collect();
+        Ok(Value::Map(map))
+    }
+
+    // ── Save / Load ──────────────────────────────────────────────
+
+    fn register_save_data(
+        &mut self,
+        domain: &str,
+        data: Vec<u8>,
+    ) -> Result<(), ServiceError> {
+        self.save_data.insert(domain.to_owned(), data);
+        Ok(())
+    }
+
+    fn load_save_data(&self, domain: &str) -> Result<Option<Vec<u8>>, ServiceError> {
+        Ok(self.save_data.get(domain).cloned())
+    }
+
+    // ── Events ───────────────────────────────────────────────────
+
+    fn emit_event(&self, name: &str, data: &Value) -> Result<(), ServiceError> {
+        self.events.borrow_mut().push((name.to_owned(), data.clone()));
+        Ok(())
+    }
+
+    // ── Logging ──────────────────────────────────────────────────
 
     fn log(&self, level: LogLevel, message: &str) {
         self.logs.borrow_mut().push((level, message.to_owned()));
