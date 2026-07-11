@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use crate::ServiceError;
 
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 use crate::Value;
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 use ron::value::Value as RonValue;
 
 /// A single file from a Content Pack, indexed in the Registry.
@@ -110,24 +110,23 @@ impl Registry {
 
 // ── Registry data parsing ──────────────────────────────────────────
 
-/// Parse raw .ron bytes into a Value tree.
+/// Parse registry data bytes into a Value tree.
 ///
-/// Uses RON's dynamic value type internally, which handles both
-/// named structs (`ItemDef(id: 1)`) and anonymous data (`{ "id": 1 }`).
-///
-/// Single point of parsing: today .ron, tomorrow maybe .json or .bin.
-/// Plugins do not change code — just recompile with a newer plugin-api version.
+/// The parsing backend is version-dependent (currently RON).
+/// This function is the single point of parsing: plugins that use it
+/// automatically get support for new data formats when the plugin-api
+/// crate is upgraded.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use openstranded_plugin_api::parse_registry_data;
 ///
-/// // Named struct (common in .ron data files)
+/// // Named struct (common in data files)
 /// let bytes = b"[ItemDef(id: 1, name: \"Wood\")]";
 /// let data = parse_registry_data(bytes).unwrap();
 /// ```
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 pub fn parse_registry_data(bytes: &[u8]) -> Result<Value, ServiceError> {
     let s = std::str::from_utf8(bytes).map_err(|e| {
         ServiceError::ParseError(format!("registry data is not valid UTF-8: {e}"))
@@ -140,7 +139,7 @@ pub fn parse_registry_data(bytes: &[u8]) -> Result<Value, ServiceError> {
 
 /// Convenience wrapper: parse bytes as an array and return elements.
 ///
-/// Errors if the .ron root is not an array.
+/// Errors if the root value is not an array.
 ///
 /// # Examples
 ///
@@ -151,7 +150,7 @@ pub fn parse_registry_data(bytes: &[u8]) -> Result<Value, ServiceError> {
 /// let items = parse_registry_list(bytes).unwrap();
 /// assert_eq!(items.len(), 2);
 /// ```
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 pub fn parse_registry_list(bytes: &[u8]) -> Result<Vec<Value>, ServiceError> {
     let root = parse_registry_data(bytes)?;
     match root {
@@ -166,7 +165,7 @@ pub fn parse_registry_list(bytes: &[u8]) -> Result<Vec<Value>, ServiceError> {
 // ── RON value conversion ───────────────────────────────────────────
 
 /// Convert a RON dynamic value to our plugin-api Value.
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 fn convert_ron_value(v: RonValue) -> Value {
     match v {
         RonValue::Unit => Value::Null,
@@ -219,7 +218,7 @@ fn convert_ron_value(v: RonValue) -> Value {
 }
 
 /// Convert a RON map key (which can be any Value) to a String.
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 fn convert_ron_key(k: RonValue) -> String {
     match k {
         RonValue::String(s) => s,
@@ -231,7 +230,7 @@ fn convert_ron_key(k: RonValue) -> String {
 // ── Tests ──────────────────────────────────────────────────────────
 
 #[cfg(test)]
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 mod tests {
     use super::*;
 

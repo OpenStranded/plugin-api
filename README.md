@@ -15,7 +15,7 @@ plugins use to communicate with the engine and each other.
 
 ## Feature flags
 
-- `ron` (default) — enables `parse_registry_data` and `parse_registry_list` helpers
+- `parse` (default) — enables `parse_registry_data` and `parse_registry_list` helpers
 - `test-utils` — enables `MockGameAPI` for unit-testing plugins natively
 
 ## WASM entry points

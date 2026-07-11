@@ -15,7 +15,7 @@
 //!
 //! ## Feature flags
 //!
-//! - `ron` (default): enables [`parse_registry_data`] and [`parse_registry_list`]
+//! - `parse` (default): enables [`parse_registry_data`] and [`parse_registry_list`]
 //! - `test-utils`: enables `MockGameAPI` for testing
 //!
 //! ## WASM entry points
@@ -46,7 +46,7 @@ pub use value::Value;
 pub use error::ServiceError;
 pub use service::{Service, ServiceRegistry};
 pub use registry::{Registry, RegistryEntry};
-#[cfg(feature = "ron")]
+#[cfg(feature = "parse")]
 pub use registry::{parse_registry_data, parse_registry_list};
 pub use game_api::{GameAPI, LogLevel};
 pub use contributions::{Contribution, SystemDecl, ResourceDecl};

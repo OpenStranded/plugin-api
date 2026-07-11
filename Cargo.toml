@@ -1,6 +1,6 @@
 [package]
 name = "openstranded-plugin-api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 license = "GPL-3.0-or-later"
@@ -14,18 +14,22 @@ categories = ["game-engines", "game-development"]
 exclude = ["/.gitignore", "Cargo.lock"]
 
 [package.metadata.docs.rs]
-features = ["ron", "test-utils"]
+features = ["parse", "test-utils"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 
-# Optional: RON parser for parse_registry_data / parse_registry_list helpers.
-# Plugins that parse .ron with their own types don't need this feature.
+# Optional: RON parser, used internally by the `parse` feature.
+# Plugins never depend on `ron` directly.
 ron = { version = "0.12", optional = true }
 
 [features]
-default = ["ron"]
+default = ["parse"]
+
+# Built-in registry data parsing (parse_registry_data, parse_registry_list).
+# Currently uses RON internally; may support JSON/binary in the future.
+parse = ["ron"]
 
 # Enables MockGameAPI and test utilities for plugin testing
 test-utils = []
